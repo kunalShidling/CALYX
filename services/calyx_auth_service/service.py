@@ -82,6 +82,19 @@ class AuthService:
                 detail=f"An account with email '{req.email}' already exists."
             )
 
+        # Defensive Security: Prevent self-assignment of 'admin' role via public registration
+        if req.role.value == "admin":
+            cls._create_audit_entry(
+                db,
+                action="REGISTRATION_BLOCKED_PRIVILEGE_ESCALATION",
+                ip_address=ip_address,
+                details=f"Attempted admin self-registration for: {req.email}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Security Violation: The 'admin' role cannot be self-assigned via public registration."
+            )
+
         # Step 2: Hash the plain-text password using salted bcrypt
         hashed_pw = hash_password(req.password)
 

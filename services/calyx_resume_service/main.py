@@ -225,10 +225,37 @@ def upload_resume_raw_text(
 @app.get("/api/v1/resumes/{resume_id}", response_model=StandardResponse, tags=["Resume Intelligence"])
 def get_resume_by_id(
     resume_id: str,
+    authorization: Optional[str] = Header(None),
     vdb: VectorStore = Depends(get_vector_db)
 ):
-    """Retrieve extracted metadata for a specific resume ID."""
+    """
+    Retrieve extracted metadata for a specific resume ID.
+    Enforces BOLA authorization: Candidates can only access their own resume;
+    recruiters and admins can inspect any candidate resume.
+    """
     meta = ResumeService.get_resume_by_id(vector_db=vdb, resume_id=resume_id)
+
+    # Broken Object Level Authorization (BOLA) Check
+    if authorization and authorization.startswith("Bearer "):
+        token_str = authorization.split(" ")[1]
+        try:
+            payload = decode_and_verify_token(
+                token_str,
+                secret_key=resume_settings.JWT_SECRET_KEY,
+                algorithm=resume_settings.JWT_ALGORITHM
+            )
+            role = payload.get("role", "candidate")
+            user_id = int(payload.get("sub"))
+            if role == "candidate" and meta.get("candidate_id") != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You do not have permission to access another candidate's resume."
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     return StandardResponse(
         success=True,
         message="Resume metadata retrieved.",

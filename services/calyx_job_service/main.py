@@ -342,12 +342,41 @@ def get_my_applications(
 def update_application_evaluation_result(
     application_id: str,
     req: ApplicationEvaluationUpdate,
+    authorization: Optional[str] = Header(None),
     db=Depends(get_job_database)
 ):
     """
     Internal endpoint called by the Agentic AI Orchestrator (calyx-agent-service)
     to persist the semantic rubric match score and multi-agent critique.
+    Protected against unauthenticated external tampering.
     """
+    if authorization and authorization.startswith("Bearer "):
+        token_str = authorization.split(" ")[1]
+        try:
+            payload = decode_and_verify_token(
+                token_str,
+                secret_key=job_settings.JWT_SECRET_KEY,
+                algorithm=job_settings.JWT_ALGORITHM
+            )
+            # Caller must be recruiter, admin, or agent service
+            if payload.get("role") not in ["recruiter", "admin", "agent_service"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: Caller lacks permission to update candidate evaluation results."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Token verification failed: {str(e)}"
+            )
+    elif job_settings.ENVIRONMENT.lower() == "production":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to record evaluation results."
+        )
+
     updated_app = JobService.update_application_evaluation(
         db=db,
         application_id=application_id,

@@ -109,11 +109,50 @@ def readiness_probe(store: AgentStateStore = Depends(get_state_store)):
 
 
 # ------------------------------------------------------------------------------
+# SECURITY & AUTHENTICATION DEPENDENCY
+# ------------------------------------------------------------------------------
+def verify_agent_caller(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+    """
+    Validates caller authorization for agent evaluation and inspection.
+    In production environments, mandates a valid Bearer token.
+    In testing/development, verifies token integrity whenever provided.
+    """
+    if not authorization:
+        if agent_settings.ENVIRONMENT.lower() == "production":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required: Missing Authorization header."
+            )
+        return None
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed Authorization header. Expected 'Bearer <token>'"
+        )
+
+    token_str = authorization.split(" ")[1]
+    try:
+        payload = decode_and_verify_token(
+            token_str,
+            secret_key=agent_settings.JWT_SECRET_KEY,
+            algorithm=agent_settings.JWT_ALGORITHM
+        )
+        return payload
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token verification failed: {str(e)}"
+        )
+
+
+# ------------------------------------------------------------------------------
 # AGENTIC AI EVALUATION API ROUTES
 # ------------------------------------------------------------------------------
 @app.post("/api/v1/agents/evaluate", response_model=StandardResponse, status_code=status.HTTP_200_OK, tags=["Agentic AI Mesh"])
 def evaluate_candidate_application(
     req: EvaluationRequest,
+    caller: Optional[dict] = Depends(verify_agent_caller),
     store: AgentStateStore = Depends(get_state_store)
 ):
     """

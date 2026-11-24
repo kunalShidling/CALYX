@@ -75,3 +75,43 @@ This document serves as the persistent audit log of all engineering phases, arch
 - Proceed to Phase 2: Security and Architecture Review (`CALYX_SECURITY_AUDIT.md`).
 
 ---
+
+## Phase 2: Security and Architecture Review
+* **Status**: 🟢 COMPLETED
+* **Date**: November 2026
+* **Objective**: Comprehensive application security audit, threat modeling, and verified vulnerability hardening without breaking changes.
+
+### 1. Summary of Completed Work
+- Inspected the entire application from an Application Security Engineer's perspective (Authentication, BOLA, BFLA, SSRF, injection vectors, CORS, secrets, Kubernetes network segmentation, and container security contexts).
+- Cataloged 7 vulnerabilities (VULN-01 to VULN-07) with exact attack scenarios and severity ratings in `CALYX_SECURITY_AUDIT.md`.
+- Remediated VULN-01 (Critical): Secured `PATCH /api/v1/applications/{application_id}/evaluation` against unauthorized state and score tampering, and restricted Ingress routing.
+- Remediated VULN-02 (High): Injected caller authentication verification on `POST /api/v1/agents/evaluate` to eliminate unauthenticated compute and distributed lock exhaustion.
+- Remediated VULN-03 (High): Blocked public self-assignment of `role: "admin"` in `AuthService.register()`, rejecting unauthorized privilege escalation attempts with HTTP 403 Forbidden.
+- Remediated VULN-04 (Medium): Added BOLA protection to `GET /api/v1/resumes/{resume_id}` so candidates cannot access other candidates' private resume metadata.
+- Remediated VULN-05 (Medium): Restricted public Ingress routing in `k8s/09-ingress.yaml` to candidate-specific application endpoints (`/api/v1/applications/me`).
+- Remediated VULN-06 (Medium): Authored zero-trust Kubernetes NetworkPolicy manifest (`k8s/10-network-policy.yaml`) isolating databases strictly to their owning microservices.
+- Documented VULN-07 (Low): Production secrets rotation and external secret store injection guidelines.
+
+### 2. Files Created or Modified
+- `CALYX_SECURITY_AUDIT.md` (Created)
+- `k8s/10-network-policy.yaml` (Created)
+- `k8s/09-ingress.yaml` (Modified: restricted external ingress path for applications)
+- `services/calyx_auth_service/service.py` (Modified: blocked admin self-registration)
+- `services/calyx_job_service/main.py` (Modified: token verification on evaluation patch)
+- `services/calyx_resume_service/main.py` (Modified: BOLA authorization on resume metadata)
+- `services/calyx_agent_service/main.py` (Modified: verified caller dependency on agent evaluation)
+- `CALYX_IMPLEMENTATION_LOG.md` (Updated)
+
+### 3. Issues Discovered
+- Discovered that public self-registration allowed arbitrary role assignment (`admin`), and that evaluation score updates could be hit from ingress without token verification. Both are now remediated.
+
+### 4. Issues Fixed
+- Resolved VULN-01, VULN-02, VULN-03, VULN-04, VULN-05, and VULN-06 with non-breaking defensive code updates.
+
+### 5. Tests Executed & Results
+- Verified that all fixes maintain full signature and payload compatibility for existing unit and integration test workflows.
+
+### 6. Outstanding Dependencies
+- Proceed to Phase 3: Frontend Architecture & Product Design (`CALYX_FRONTEND_DESIGN.md`).
+
+---

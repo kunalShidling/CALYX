@@ -1,0 +1,143 @@
+# ==============================================================================
+# CALYX KUBERNETES MANIFEST: ZERO-TRUST NETWORK POLICIES
+# ==============================================================================
+# Concept Explanation for Beginners:
+# By default in Kubernetes, any pod in a cluster can talk to any other pod on any port.
+# If an attacker breaches one container, they could scan and access internal databases!
+# A NetworkPolicy acts as a firewall between pods.
+# Below, we implement Zero-Trust principles:
+# 1. Databases only accept traffic from the specific microservice that owns them.
+# 2. Microservices only accept HTTP traffic from the Ingress Controller (or internal mesh callers).
+# ==============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-default-deny-all
+  namespace: calyx
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# ------------------------------------------------------------------------------
+# 1. DATABASE NETWORK POLICIES: Microservice-to-Dedicated-DB Only
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-auth-db-policy
+  namespace: calyx
+spec:
+  podSelector:
+    matchLabels:
+      app: calyx-auth-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calyx-auth-service
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-job-db-policy
+  namespace: calyx
+spec:
+  podSelector:
+    matchLabels:
+      app: calyx-job-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calyx-job-service
+      ports:
+        - protocol: TCP
+          port: 27017
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-redis-policy
+  namespace: calyx
+spec:
+  podSelector:
+    matchLabels:
+      app: calyx-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calyx-agent-service
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-analytics-db-policy
+  namespace: calyx
+spec:
+  podSelector:
+    matchLabels:
+      app: calyx-analytics-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calyx-analytics-service
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# ------------------------------------------------------------------------------
+# 2. MICROSERVICE NETWORK POLICIES: Ingress & Mesh Access Only
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: calyx-microservices-ingress-policy
+  namespace: calyx
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - calyx-auth-service
+          - calyx-job-service
+          - calyx-resume-service
+          - calyx-agent-service
+          - calyx-analytics-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 8002
+        - protocol: TCP
+          port: 8003
+        - protocol: TCP
+          port: 8004
+        - protocol: TCP
+          port: 8005

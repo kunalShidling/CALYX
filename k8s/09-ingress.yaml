@@ -47,8 +47,8 @@ spec:
                 port:
                   number: 8002
 
-          # 3. Application Submission Routes
-          - path: /api/v1/applications
+          # 3. Application Candidate Routes (External Ingress Restricted to /me)
+          - path: /api/v1/applications/me
             pathType: Prefix
             backend:
               service:
