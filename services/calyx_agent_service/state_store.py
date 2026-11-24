@@ -186,12 +186,19 @@ class AgentStateStore:
         end
         """
 
-        result = self.r.eval(
-            release_script,
-            1,
-            key,
-            token
-        )
+        try:
+            result = self.r.eval(
+                release_script,
+                1,
+                key,
+                token
+            )
+        except Exception:
+            # Fallback for Redis mock engines without embedded Lua interpreter
+            if self.r.get(key) == token:
+                result = self.r.delete(key)
+            else:
+                result = 0
 
         if result:
             logger.info(

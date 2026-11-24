@@ -47,11 +47,15 @@ def init_db(force_mock: bool = False):
     else:
         try:
             logger.info(f"Connecting to MongoDB at {job_settings.MONGODB_URL}...")
-            # Set a 2-second timeout for server selection to detect if MongoDB is running locally
+            # Configure robust connection pooling and timeout boundaries
             client = pymongo.MongoClient(
                 job_settings.MONGODB_URL,
                 serverSelectionTimeoutMS=2000,
-                connectTimeoutMS=2000
+                connectTimeoutMS=2000,
+                maxPoolSize=100,
+                minPoolSize=10,
+                maxIdleTimeMS=45000,
+                waitQueueTimeoutMS=5000
             )
             # The 'ping' command forces an actual network handshake
             client.admin.command("ping")

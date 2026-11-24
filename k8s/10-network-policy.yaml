@@ -127,10 +127,13 @@ spec:
           - calyx-resume-service
           - calyx-agent-service
           - calyx-analytics-service
+          - calyx-frontend
   policyTypes:
     - Ingress
   ingress:
     - ports:
+        - protocol: TCP
+          port: 80
         - protocol: TCP
           port: 8001
         - protocol: TCP

@@ -47,8 +47,8 @@ spec:
                 port:
                   number: 8002
 
-          # 3. Application Candidate Routes (External Ingress Restricted to /me)
-          - path: /api/v1/applications/me
+          # 3. Application Candidate Routes
+          - path: /api/v1/applications
             pathType: Prefix
             backend:
               service:
@@ -82,3 +82,12 @@ spec:
                 name: calyx-analytics-service
                 port:
                   number: 8005
+
+          # 7. Frontend SPA Web Application (Default Route)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: calyx-frontend
+                port:
+                  number: 80

@@ -185,3 +185,22 @@ services:
         condition: service_healthy
     networks:
       - calyx-network
+
+  # ----------------------------------------------------------------------------
+  # 3. CALYX WEB FRONTEND (React + Vite + Tailwind + NGINX)
+  # ----------------------------------------------------------------------------
+  calyx-frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: calyx-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - calyx-auth-service
+      - calyx-job-service
+      - calyx-resume-service
+      - calyx-agent-service
+      - calyx-analytics-service
+    networks:
+      - calyx-network

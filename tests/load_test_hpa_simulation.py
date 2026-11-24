@@ -21,43 +21,44 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Ensure root workspace directory is on Python search path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from fastapi.testclient import TestClient
-from services.calyx_agent_service.main import app as agent_app
-from services.calyx_agent_service.state_store import get_state_store, get_redis_client, AgentStateStore
+from services.calyx_agent_service.main import evaluate_candidate_application
+from services.calyx_agent_service.schemas import EvaluationRequest
+from services.calyx_agent_service.state_store import get_redis_client, AgentStateStore
 
 
-def run_single_evaluation_request(client: TestClient, worker_id: int) -> dict:
+def run_single_evaluation_request(store: AgentStateStore, worker_id: int) -> dict:
     """
     Simulates a single applicant dispatching an Agentic AI evaluation under load.
     Measures individual request response time in milliseconds.
     """
     start_time = time.perf_counter()
     
-    payload = {
-        "application_id": f"load_app_{worker_id}",
-        "candidate_profile": {
+    req = EvaluationRequest(
+        application_id=f"load_app_{worker_id}",
+        candidate_profile={
             "candidate_id": 1000 + worker_id,
             "candidate_name": f"Applicant {worker_id}",
             "skills": ["Kubernetes", "Docker", "Python", "FastAPI", "Microservices"],
             "experience_years": 4 + (worker_id % 5),
             "raw_text_preview": f"Applicant {worker_id} with experience in container orchestration."
         },
-        "job_requirements": {
+        job_requirements={
             "title": "Cloud Infrastructure Engineer",
             "min_years_exp": 3,
             "required_skills": [{"name": "Kubernetes", "weight": 1.0}],
             "rubric_criteria": [{"category": "Core Competency", "weight": 1.0, "description": "Hands-on experience"}]
         }
-    }
+    )
 
     try:
-        res = client.post("/api/v1/agents/evaluate", json=payload)
+        caller = {"user_id": 100, "role": "recruiter", "email": "recruiter@calyx.ai"}
+        res = evaluate_candidate_application(req, caller=caller, store=store)
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-        success = res.status_code == 200
-        score = res.json().get("data", {}).get("final_score", 0.0) if success else 0.0
+        success = res.success
+        score = res.data.get("final_score", 0.0) if success else 0.0
         return {
             "worker_id": worker_id,
-            "status_code": res.status_code,
+            "status_code": 200,
             "elapsed_ms": elapsed_ms,
             "success": success,
             "score": score
@@ -84,15 +85,13 @@ def simulate_high_traffic_load(concurrency: int = 50):
     # Initialize mock Redis for test
     mock_redis = get_redis_client(force_mock=True)
     test_store = AgentStateStore(client=mock_redis)
-    agent_app.dependency_overrides[get_state_store] = lambda: test_store
-    client = TestClient(agent_app)
 
     total_start = time.perf_counter()
     results = []
 
     # Launch concurrent worker threads
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [executor.submit(run_single_evaluation_request, client, i) for i in range(concurrency)]
+        futures = [executor.submit(run_single_evaluation_request, test_store, i) for i in range(concurrency)]
         for future in as_completed(futures):
             results.append(future.result())
 

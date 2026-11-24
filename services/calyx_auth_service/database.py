@@ -27,15 +27,20 @@ from services.calyx_auth_service.config import auth_settings
 # SQLite requires 'check_same_thread: False' to allow multi-threaded FastAPI workers
 is_sqlite = auth_settings.DATABASE_URL.startswith("sqlite")
 connect_args = {"check_same_thread": False} if is_sqlite else {}
+pool_kwargs = {} if is_sqlite else {
+    "pool_size": 20,
+    "max_overflow": 40,
+    "pool_timeout": 30,
+    "pool_pre_ping": True,
+    "pool_recycle": 3600
+}
 
-# Create the SQLAlchemy Engine
-# The engine is the central source of database connectivity
+# Create the SQLAlchemy Engine with optimized connection pooling
 engine = create_engine(
     auth_settings.DATABASE_URL,
     connect_args=connect_args,
-    # Pool size: number of permanent open connections to keep in the pool (for PostgreSQL)
-    # Echo: set to False in production to avoid cluttering stdout with raw SQL statements
-    echo=False
+    echo=False,
+    **pool_kwargs
 )
 
 # Create a customized Sessionmaker class

@@ -1,0 +1,83 @@
+# ==============================================================================
+# CALYX KUBERNETES MANIFEST: FRONTEND SINGLE-PAGE APPLICATION (SPA)
+# ==============================================================================
+# Concept Explanation for Beginners:
+# This manifest deploys the production NGINX container hosting the compiled
+# React + TypeScript + Tailwind CSS Single-Page Application.
+# It runs with 2 replicas for high availability and zero-downtime rolling updates.
+# ==============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calyx-frontend
+  namespace: calyx
+  labels:
+    app: calyx-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: calyx-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: calyx-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101 # nginx user
+        fsGroup: 101
+      containers:
+        - name: frontend
+          image: calyx/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: calyx-frontend
+  namespace: calyx
+  labels:
+    app: calyx-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: calyx-frontend

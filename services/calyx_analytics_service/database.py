@@ -13,11 +13,19 @@ from services.calyx_analytics_service.config import analytics_settings
 
 is_sqlite = analytics_settings.DATABASE_URL.startswith("sqlite")
 connect_args = {"check_same_thread": False} if is_sqlite else {}
+pool_kwargs = {} if is_sqlite else {
+    "pool_size": 20,
+    "max_overflow": 40,
+    "pool_timeout": 30,
+    "pool_pre_ping": True,
+    "pool_recycle": 3600
+}
 
 engine = create_engine(
     analytics_settings.DATABASE_URL,
     connect_args=connect_args,
-    echo=False
+    echo=False,
+    **pool_kwargs
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
