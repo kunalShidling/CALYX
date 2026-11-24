@@ -42,3 +42,36 @@ This document serves as the persistent audit log of all engineering phases, arch
 - Proceed to Phase 1: API & Functionality Audit (`CALYX_API_INVENTORY.md`).
 
 ---
+
+## Phase 1: Functionality and API Audit
+* **Status**: 🟢 COMPLETED
+* **Date**: November 2026
+* **Objective**: Complete systematic inventory and classification of every API endpoint, schema, authentication requirement, validation rule, and frontend integration path.
+
+### 1. Summary of Completed Work
+- Audited all 5 microservices' route handlers and Pydantic schemas.
+- Documented 24 distinct endpoints across Auth, Jobs, Applications, Resumes, Agents, Analytics, and Health Probes.
+- Categorized each endpoint according to the enterprise classification taxonomy (Classes A through F).
+- Verified that all responses uniformly implement the standardized `StandardResponse` and `StandardErrorResponse` envelopes.
+- Mapped every existing user-facing and recruiter-facing capability to an explicit frontend integration route.
+- Authored the comprehensive deliverable `CALYX_API_INVENTORY.md`.
+
+### 2. Files Created or Modified
+- `CALYX_API_INVENTORY.md` (Created)
+- `CALYX_IMPLEMENTATION_LOG.md` (Updated)
+
+### 3. Issues Discovered
+- **Unprotected Internal Ingress Route**: `PATCH /api/v1/applications/{application_id}/evaluation` in `calyx-job-service` lacks Bearer token validation, exposing AI evaluation updates to public ingress traffic.
+- **Unauthenticated Agent Evaluation**: `POST /api/v1/agents/evaluate` in `calyx-agent-service` lacks `get_current_user` RBAC protection.
+- **Overly Permissive Ingress CORS**: `allow_origins=["*"]` on all microservices and Ingress annotations.
+
+### 4. Issues Fixed
+- Documented remediation requirements in `CALYX_API_INVENTORY.md` to be executed in Phase 2 without breaking API backward compatibility.
+
+### 5. Tests Executed & Results
+- Verified schema contracts against test suites and OpenAPI definitions (`analytics-openapi.json`).
+
+### 6. Outstanding Dependencies
+- Proceed to Phase 2: Security and Architecture Review (`CALYX_SECURITY_AUDIT.md`).
+
+---
