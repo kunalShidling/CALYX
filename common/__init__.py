@@ -9,6 +9,13 @@ from common.security import (
 )
 from common.responses import StandardResponse, StandardErrorResponse, ErrorDetail
 from common.logging_config import configure_logger
+from common.resilience import (
+    CircuitBreaker,
+    CircuitBreakerState,
+    CircuitBreakerOpenException,
+    ResilientHttpClient,
+    retry_with_backoff,
+)
 
 __all__ = [
     "BaseMicroserviceSettings",
@@ -21,4 +28,9 @@ __all__ = [
     "StandardErrorResponse",
     "ErrorDetail",
     "configure_logger",
+    "CircuitBreaker",
+    "CircuitBreakerState",
+    "CircuitBreakerOpenException",
+    "ResilientHttpClient",
+    "retry_with_backoff",
 ]

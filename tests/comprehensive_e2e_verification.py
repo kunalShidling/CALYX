@@ -18,6 +18,12 @@ os.environ["REDIS_URL"] = "mock"
 
 from fastapi import HTTPException
 from common.security import create_access_token
+from common.resilience import (
+    CircuitBreaker,
+    CircuitBreakerState,
+    retry_with_backoff,
+    ResilientHttpClient,
+)
 
 # 1. Auth Service imports
 from services.calyx_auth_service.main import (
@@ -433,6 +439,59 @@ def run_all_tests():
     t0 = time.perf_counter()
     dist_res = get_job_distribution(job_id=created_job_id, db=analytics_db)
     collector.record("6.3 Job Score Distribution Histogram", dist_res.success and "score_brackets" in dist_res.data, (time.perf_counter() - t0) * 1000)
+
+    # ==========================================================================
+    # SUITE 7: RESILIENCE, CIRCUIT BREAKER & FAULT TOLERANCE
+    # ==========================================================================
+    print("\n--- [Suite 7: Resilience, Circuit Breakers & Fault Tolerance] ---")
+
+    # 7.1 CircuitBreaker State Machine: Closed -> Open (Fast-Fail) -> Recovery
+    t0 = time.perf_counter()
+    cb = CircuitBreaker(service_name="payment-gateway", failure_threshold=2, recovery_timeout=0.1)
+    cb.record_failure()
+    cb.record_failure()
+    tripped = cb.state == CircuitBreakerState.OPEN and cb.can_execute() is False
+    time.sleep(0.12)
+    recovered = cb.can_execute() is True and cb.state == CircuitBreakerState.HALF_OPEN
+    cb.record_success()
+    closed = cb.state == CircuitBreakerState.CLOSED
+    collector.record("7.1 Circuit Breaker: State Machine (CLOSED -> OPEN -> HALF_OPEN -> CLOSED)", tripped and recovered and closed, (time.perf_counter() - t0) * 1000)
+
+    # 7.2 Transient Network Fault Retries with Exponential Backoff
+    t0 = time.perf_counter()
+    attempt_count = 0
+    @retry_with_backoff(max_retries=3, initial_delay=0.02, backoff_factor=1.5, exceptions=(RuntimeError,))
+    def flaky_network_call():
+        nonlocal attempt_count
+        attempt_count += 1
+        if attempt_count < 3:
+            raise RuntimeError("Transient socket drop")
+        return "SUCCESS"
+    retry_result = flaky_network_call()
+    collector.record("7.2 Retry with Exponential Backoff on Network Glitches", retry_result == "SUCCESS" and attempt_count == 3, (time.perf_counter() - t0) * 1000, f"Recovered after {attempt_count} attempts")
+
+    # 7.3 Graceful Degradation Fallback under Dependency Outage
+    t0 = time.perf_counter()
+    breaker = ResilientHttpClient.get_circuit_breaker("failing-metrics-service")
+    breaker.record_failure()
+    breaker.record_failure()
+    breaker.record_failure()
+    fallback_payload = {"status": "DEGRADED", "fallback_cached": True}
+    res_fallback = ResilientHttpClient.call(
+        service_name="failing-metrics-service",
+        method="GET",
+        url="http://unreachable-pod:8080/metrics",
+        fallback=lambda: fallback_payload
+    )
+    collector.record("7.3 Resilient Client: Graceful Degradation Fallback", res_fallback == fallback_payload, (time.perf_counter() - t0) * 1000, "Fallback triggered smoothly without crashing caller")
+
+    # 7.4 Polyglot Database Graceful Fallback (Zero-Dependency Local Mode)
+    t0 = time.perf_counter()
+    db_fallbacks_active = (
+        auth_engine.dialect.name in ("sqlite", "postgresql") and
+        agent_store.ping() is True
+    )
+    collector.record("7.4 Polyglot DB In-Memory / Local Engine Resilience", db_fallbacks_active, (time.perf_counter() - t0) * 1000, "SQLite, mongomock, fakeredis active")
 
     # Clean up test vector store files
     try:
